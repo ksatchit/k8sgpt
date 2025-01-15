@@ -18,17 +18,19 @@ func New() common.IAnalyzer {
 	return &SingleReplicaAnalyzer{}
 }
 
-func (a *SingleReplicaAnalyzer) SetClient(client kubernetes.Interface) {
+func (a SingleReplicaAnalyzer) SetClient(client kubernetes.Interface) {
 	a.client = client
 }
 
-func (a *SingleReplicaAnalyzer) Name() string {
+func (a SingleReplicaAnalyzer) Name() string {
 	return "single-replica"
 }
 
-func (a *SingleReplicaAnalyzer) Analyze(analyzerCtx common.Analyzer) ([]common.Result, error) {
+func (a SingleReplicaAnalyzer) Analyze(analyzerCtx common.Analyzer) ([]common.Result, error) {
 	ctx := context.Background()
-	deployments, err := a.client.AppsV1().Deployments("").List(ctx, metav1.ListOptions{})
+	deployments, err := analyzerCtx.Client.GetClient().AppsV1().Deployments(analyzerCtx.Namespace).List(ctx, metav1.ListOptions{
+		LabelSelector: analyzerCtx.LabelSelector,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list deployments: %v", err)
 	}
@@ -39,7 +41,7 @@ func (a *SingleReplicaAnalyzer) Analyze(analyzerCtx common.Analyzer) ([]common.R
 		if deployment.Spec.Replicas != nil && *deployment.Spec.Replicas == 1 {
 			results = append(results, common.Result{
 				Kind: "Deployment",
-				Name: deployment.Name,
+				Name: fmt.Sprintf("%s/%s", deployment.Namespace, deployment.Name),
 				Error: []common.Failure{
 					{
 						Text: fmt.Sprintf("Deployment %s in namespace %s has only one replica", deployment.Name, deployment.Namespace),
@@ -61,6 +63,6 @@ func (a *SingleReplicaAnalyzer) Analyze(analyzerCtx common.Analyzer) ([]common.R
 	return results, nil
 }
 
-func (a *SingleReplicaAnalyzer) Configure(ctx context.Context, config map[string]string) error {
+func (a SingleReplicaAnalyzer) Configure(ctx context.Context, config map[string]string) error {
 	return nil
 }
